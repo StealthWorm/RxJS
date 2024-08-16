@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- <script
+      src="https://unpkg.com/rxjs@^7/dist/bundles/rxjs.umd.min.js"></script> -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/7.7.0/rxjs.umd.min.js"></script>
+    <title>Document</title>
+
+    <style>
+      .overview-card {
+        width: 300px;
+        height: 300px;
+        background-color: aquamarine;
+        border: 1px solid #333;
+        cursor: move;
+        position: absolute;
+        box-shadow: #333 1px 1px 25px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="overview-card"></div>
+
+    <script>
+      const { fromEvent, merge } = rxjs;
+      const { switchMap, takeUntil, map, delay, filter, tap, skip } = rxjs.operators;
+
+      const overviewCard = document.querySelector('.overview-card');
+      overviewCard.style.transition = 'transform 250ms ease-in-out';
+
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      let rotationAngle = 0;
+
+      // '$' ao final é uma convenção para dizer que se trata de um observable
+      const mouseDown$ = fromEvent(overviewCard, 'mousedown');
+      const mouseUp$ = fromEvent(document, 'mouseup');
+      const mouseMove$ = fromEvent(document, 'mousemove');
+      const keyUp$ = fromEvent(document, 'keyup');
+
+      // quando ocorrer um evento 'mouseDown', vou me inscrever em um 'mouseMove', e o
+      // observarei até que ocorra um evento 'mouseUp'
+      const mouseDragDrop$ = mouseDown$.pipe(
+        map(start => ({
+          startX: start.clientX - overviewCard.offsetLeft,
+          startY: start.clientY - overviewCard.offsetTop,
+        })),
+        // 'switchMap': novas emissões geram novos subscribes, removendo as emissões anteriores do subscribe
+        switchMap(start => 
+          merge(
+            mouseMove$.pipe(
+              map(move => {
+                let x = move.clientX - start.startX;
+                let y = move.clientY - start.startY;
+
+                // Constrain the position within the viewport
+                x = Math.max(0, Math.min(x, viewportWidth - overviewCard.clientWidth));
+                y = Math.max(0, Math.min(y, viewportHeight - overviewCard.clientHeight));
+
+                return {x, y}
+              }),
+              takeUntil(mouseUp$)
+            ),
+            mouseUp$.pipe(
+              map(end => ({
+                x: end.clientX - start.startX, 
+                y: end.clientY - start.startY
+              })),
+              tap(() => {
+                rotationAngle += 90;
+                overviewCard.style.transform = `rotate(${rotationAngle}deg)`;
+              }),
+            ),
+            keyUp$.pipe(
+              filter(e => e.which === 32), // Space key (32)
+              tap(() => {
+                document.body.insertBefore(overviewCard.cloneNode(true), overviewCard)
+              }),
+              skip() // pula esse pipe no observer, para indicar que não queremos repassar informações para ele. Pode receber um parametro que indica o numero de emissões a serem ignoradas
+            ),
+            keyUp$.pipe(
+              filter(e => e.which === 32), // Space key (32)
+              tap(() => {
+                document.body.insertBefore(overviewCard.cloneNode(true), overviewCard)
+              }),
+              tap(() => {
+                // Increment the rotation angle by 15 degrees after spacebar press
+                rotationAngle += 90;
+                overviewCard.style.transform = `rotate(${rotationAngle}deg)`;
+                console.log(`Card rotated to ${rotationAngle} degrees after spacebar press`);
+              }),
+              skip() // pula esse pipe no observer, para indicar que não queremos repassar informações para ele. Pode receber um parametro que indica o numero de emissões a serem ignoradas
+            )
+          ),
+        )
+      )
+
+      mouseDragDrop$
+        .pipe(delay(50))
+        .subscribe(pos => {
+          if (pos) { 
+            overviewCard.style.left = `${pos.x}px`;
+            overviewCard.style.top = `${pos.y}px`;
+
+            // Log the current position
+            console.log(`Card position: x=${pos.x}, y=${pos.y}`);
+          }
+        })
+    </script>
+  </body>
+</html>
