@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/7.7.0/rxjs.umd.min.js"></script>
+    <title>Document</title>
+
+    <style>
+      body {
+        background: radial-gradient(circle, rgba(247,187,94,1) 22%, rgba(201,135,32,1) 50%);
+        margin: 0;
+      }
+
+      .content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+
+      input {
+        padding: 16px;
+        font-size: 24px;
+        border-radius: 8px;
+        width: 400px;
+        border: none;
+        outline: none;
+        box-sizing: border-box;
+        background: #fff;
+      }
+
+      ul {
+        max-height: 400px;
+        overflow-y: auto;
+        list-style: none;
+        padding: 10px;
+        width: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+      }
+
+      li {
+        width: 100%;
+        padding: 16px;
+        cursor: pointer;
+        background-color: #fff;
+        border-radius: 4px;
+      }
+
+      li:not(:last-of-type) {
+        border-bottom:2px solid #f7bb5e;
+      }
+    </style>
+  </head>
+  <body>
+
+    <div class="content">
+      <input type="text" placeholder="Pais..." />
+      <ul></ul>
+    </div>
+
+    <script>
+      const { fromEvent, ajax: {ajax}, of } = rxjs;
+      const { switchMap, pluck, map, debounceTime, catchError, distinctUntilChanged, startWith } = rxjs.operators;
+
+      const input = document.querySelector('input');
+      const list = document.querySelector('ul');
+      const inputEvent$ = fromEvent(input, 'input');
+      // const listEvent$ = fromEvent(list, 'ul');
+
+      const showResult = res => {
+        list.innerHTML = res.map(e => `<li>${e}</li>`).join('');
+      }
+
+      const searchCountries = term => ajax(`https://restcountries.com/v3.1/name/${term}?fields=name`).pipe(
+        // pluk recebe um objeto e extrai uma propriedade dele  
+        pluck('response'),
+        map(response => response.map(e => e.name.common))
+      )
+
+      inputEvent$
+      .pipe(
+        debounceTime(300), //aguarda esse tempo antes de emitir um valor real
+        pluck('target', 'value'),
+        map(e => e.trim()),
+        // distinctUntilChanged ele vai distinguir entre as mudanças entre eventos anteriores e o atual, como uma especie  de cache para evitar recalculo 
+        distinctUntilChanged(),
+        switchMap(term => {
+          if(!term || term.length < 3) return of([])
+          return searchCountries(term)
+        }),
+        catchError((err, source) => {
+          console.log(err);
+          return source.pipe(
+            startWith([]) // emite esse valor assim que a inscrição começar, no caso iniciamos com valor vazio
+          );
+        })
+      )
+      .subscribe(showResult);
+    </script>
+  </body>
+</html>
