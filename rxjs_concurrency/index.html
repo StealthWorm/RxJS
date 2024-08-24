@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/7.7.0/rxjs.umd.min.js"></script>
+
+    <title>Document</title>
+  </head>
+  <body>
+
+    <script>
+      const { of, ajax: {ajax} } = rxjs;
+      const { mergeMap, pluck, concatMap, switchMap, exhaustMap, combineAll } = rxjs.operators;
+
+      const api = (response, delay) => ajax({
+          url: `http://localhost:3000/response/${JSON.stringify(response)}/delay/${delay}/`,
+          crossDomain: true,
+          responseType: 'json',
+      })
+      
+      const resA = api({data: "Test1"}, 1000);
+      const resB = api({data: "Test2"}, 2000);
+      const resC = api({data: "Test3"}, 300);
+      const resD = api({data: "Test4"}, 1500);
+      const resE = api({data: "Test5"}, 500);
+
+      of(resA, resB, resC, resD, resE)
+      .pipe(
+        // mergeMap é como uma Promise com um "then" em cada item, retornando o mesmo como um observable subscrito
+        // ele executa as requests em paralelo
+        // podemos usar o 'merge' diretamente no lugar do 'of', removendo o 'mergeMap' interno
+        mergeMap(e => e, 5), // podemos definir a quantidade de requisições em paralelo, sem ter que chegar ao ponto de esperar um tempo para continuar executando. Pode afetar a ordem das requisições, dependendo do tempo de resposta de cada
+        // concatMap(e => e), // ao contrário do mergeMap, executa as requests em serial, esperando o termino de uma para iniciar a próxima
+        // switchMap(e => e), // para relembrar, esse operador remove o observable anterior para executar o novo. Nesse exemplo, ao final só teriamos a request "E" ao final
+        // exhaustMap(e => e), // ao contrário do switchMap, masntém somente a primeira subscrição, util em formulários, para evitar excesso de requisições enquanto a primeira não terminar
+        pluck('response', 'data'),
+        combineAll() // quando of 'of' terminar o array ele vai combinar tudo em um único array. Ao invés de cada item dar um subscribe, um unico subscribe é feito ao final
+      )
+      .subscribe(
+        x => console.log(x),
+        err => console.error(err),
+        _ => console.log("Complete")
+      )
+    </script>
+  </body>
+</html>
